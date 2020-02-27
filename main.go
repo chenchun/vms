@@ -8,12 +8,13 @@ import (
 	"github.com/digitalocean/godo"
 	"github.com/golang/glog"
 	"golang.org/x/oauth2"
+	"time"
 )
 
 var (
 	token       = flag.String("token", "", "digital ocean token")
 	dropletName = flag.String("droplet-name", "super-cool-droplet", "droplet name")
-	action      = flag.String("action", "get", "get/create/delete a droplet")
+	action      = flag.String("action", "get", "get/create/delete/run a droplet")
 )
 
 type TokenSource struct {
@@ -31,19 +32,27 @@ func main() {
 	flag.Parse()
 	flag.Set("logtostderr", "true")
 	client := createClient()
+	name := *dropletName
 	switch *action {
 	case "create":
-		if err := createDroplet(client, *dropletName); err != nil {
+		if err := createDroplet(client, name); err != nil {
 			glog.Fatal(err)
 		}
 	case "get":
-		if droplet, err := getDroplet(client, *dropletName); err != nil {
+		if droplet, err := getDroplet(client, name); err != nil {
 			glog.Fatal(err)
 		} else {
 			glog.Infof("droplet %v", droplet)
 		}
 	case "delete":
-		if err := deleteDroplet(client, *dropletName); err != nil {
+		if err := deleteDroplet(client, name); err != nil {
+			glog.Fatal(err)
+		}
+	case "run":
+		if err := createDroplet(client, name); err != nil {
+			glog.Fatal(err)
+		}
+		if err := waitForActive(client, name); err != nil {
 			glog.Fatal(err)
 		}
 	}
@@ -117,4 +126,24 @@ func deleteDroplet(client *godo.Client, dropletName string) error {
 		glog.Infof("deleted droplet %v", droplet)
 	}
 	return err
+}
+
+func waitForActive(client *godo.Client, dropletName string) error {
+	for {
+		droplet, err := getDroplet(client, dropletName)
+		if err != nil {
+			glog.Warning(err)
+		} else {
+			if droplet.Status == "active" {
+				glog.Infof("droplet %s activate", dropletName)
+				return nil
+			}
+		}
+		time.Sleep(time.Second * 2)
+		glog.Infof("waiting for droplet to active")
+	}
+}
+
+func deploy() error {
+	return nil
 }
